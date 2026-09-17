@@ -6,6 +6,7 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Positive;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.OptimisticLockingFailureException;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -84,6 +85,11 @@ class ErrorProbeController {
     @GetMapping("/data-integrity")
     String dataIntegrity() {
         throw new DataIntegrityViolationException("unique violation: users_email_key");
+    }
+
+    @GetMapping("/access-denied")
+    String accessDenied() {
+        throw new AccessDeniedException("Access Denied");
     }
 
     @GetMapping("/boom")

@@ -9,7 +9,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import com.ecommerce.oms.security.SecurityConfig;
+import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.web.SecurityFilterChain;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
@@ -18,7 +19,10 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.context.TestConfiguration;
+import com.ecommerce.oms.security.JwtAuthenticationFilter;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.ComponentScan;
+import org.springframework.context.annotation.FilterType;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
@@ -27,14 +31,21 @@ import org.springframework.test.web.servlet.MockMvc;
  * Drives every branch of {@link GlobalExceptionHandler} through {@link ErrorProbeController} and checks the
  * RFC 7807 body: status, title, detail, instance, {@code code}, {@code timestamp} and {@code errors}.
  */
-@WebMvcTest(controllers = ErrorProbeController.class)
-@Import({SecurityConfig.class, GlobalExceptionHandlerTest.FixedClock.class})
+@WebMvcTest(controllers = ErrorProbeController.class,
+        excludeFilters = @ComponentScan.Filter(type = FilterType.ASSIGNABLE_TYPE, classes = JwtAuthenticationFilter.class))
+@Import(GlobalExceptionHandlerTest.TestSupport.class)
 class GlobalExceptionHandlerTest {
 
     static final Instant NOW = Instant.parse("2026-09-17T10:15:30Z");
 
     @TestConfiguration
-    static class FixedClock {
+    static class TestSupport {
+        /** The real SecurityConfig would 401 the probe endpoints; this test is about the advice only. */
+        @Bean
+        SecurityFilterChain permitAll(HttpSecurity http) throws Exception {
+            return http.csrf(csrf -> csrf.disable()).authorizeHttpRequests(a -> a.anyRequest().permitAll()).build();
+        }
+
         @Bean
         Clock clock() {
             return Clock.fixed(NOW, ZoneOffset.UTC);
@@ -191,5 +202,14 @@ class GlobalExceptionHandlerTest {
                 .andExpect(jsonPath("$.title").value("Method not allowed"))
                 .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
                 .andExpect(jsonPath("$.timestamp").value("2026-09-17T10:15:30Z"));
+    }
+
+    @Test
+    @DisplayName("AccessDeniedException from @PreAuthorize -> 403 FORBIDDEN")
+    void accessDenied_403() throws Exception {
+        mvc.perform(get("/probe/access-denied"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("FORBIDDEN"))
+                .andExpect(jsonPath("$.title").value("Forbidden"));
     }
 }

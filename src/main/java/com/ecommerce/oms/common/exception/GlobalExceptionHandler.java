@@ -13,6 +13,7 @@ import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.validation.FieldError;
 import org.springframework.validation.method.ParameterValidationResult;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
@@ -49,6 +50,15 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(ApiException.class)
     public ProblemDetail handleApi(ApiException ex, HttpServletRequest request) {
         return problem(ex.getCode(), ex.getMessage(), request);
+    }
+
+    /**
+     * A {@code @PreAuthorize} denial is thrown inside the handler method, so it reaches this advice
+     * rather than the filter chain's AccessDeniedHandler. Same 403 body either way.
+     */
+    @ExceptionHandler(AccessDeniedException.class)
+    public ProblemDetail handleAccessDenied(AccessDeniedException ex, HttpServletRequest request) {
+        return problem(ErrorCode.FORBIDDEN, "You do not have permission to access this resource", request);
     }
 
     // ---- 400: validation and malformed input --------------------------------------------------
