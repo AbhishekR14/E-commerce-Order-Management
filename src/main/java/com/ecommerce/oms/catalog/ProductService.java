@@ -48,12 +48,6 @@ public class ProductService {
         return productRepository.findById(id).orElseThrow(() -> new NotFoundException("Product", id));
     }
 
-    /** An existing, active product for other services (cart, checkout). */
-    @Transactional(readOnly = true)
-    public Product requireActive(Long id) {
-        return productRepository.findByIdAndActiveTrue(id).orElseThrow(() -> new NotFoundException("Product", id));
-    }
-
     // ---- admin ------------------------------------------------------------------------------
 
     @Transactional(readOnly = true)
