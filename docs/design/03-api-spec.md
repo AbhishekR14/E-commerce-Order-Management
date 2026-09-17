@@ -158,4 +158,5 @@ The `errors` list appears only for validation failures.
 | 422 | `RETURN_NOT_ALLOWED` | Wrong status, window expired, quantity exceeds returnable |
 | 422 | `INVENTORY_ADJUSTMENT_INVALID` | |
 | 422 | `CATEGORY_IN_USE`, `CATEGORY_CYCLE` | |
+| 422 | `USER_ROLE_INVALID` | Admin user create/patch: staff without `warehouseId`, admin with one, role `CUSTOMER`, or `warehouseId` on a non-staff user |
 | 500 | `INTERNAL_ERROR` | Unexpected (no stack trace in the body) |
