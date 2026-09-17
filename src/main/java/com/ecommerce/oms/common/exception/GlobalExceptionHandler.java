@@ -14,12 +14,14 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.validation.FieldError;
+import org.springframework.validation.method.ParameterValidationResult;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingRequestHeaderException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.HandlerMethodValidationException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
@@ -64,6 +66,17 @@ public class GlobalExceptionHandler {
     public ProblemDetail handleParamValidation(ConstraintViolationException ex, HttpServletRequest request) {
         List<FieldViolation> errors = ex.getConstraintViolations().stream()
                 .map(v -> new FieldViolation(leafName(v.getPropertyPath().toString()), v.getMessage()))
+                .sorted(BY_FIELD)
+                .toList();
+        return validationProblem(errors, request);
+    }
+
+    /** Constraints on {@code @RequestParam}/{@code @PathVariable} (Spring MVC built-in method validation). */
+    @ExceptionHandler(HandlerMethodValidationException.class)
+    public ProblemDetail handleMethodValidation(HandlerMethodValidationException ex, HttpServletRequest request) {
+        List<FieldViolation> errors = ex.getParameterValidationResults().stream()
+                .flatMap(result -> result.getResolvableErrors().stream()
+                        .map(error -> new FieldViolation(parameterName(result), error.getDefaultMessage())))
                 .sorted(BY_FIELD)
                 .toList();
         return validationProblem(errors, request);
@@ -159,6 +172,11 @@ public class GlobalExceptionHandler {
 
     private static FieldViolation toViolation(FieldError error) {
         return new FieldViolation(error.getField(), error.getDefaultMessage());
+    }
+
+    private static String parameterName(ParameterValidationResult result) {
+        String name = result.getMethodParameter().getParameterName();
+        return name != null ? name : "arg" + result.getMethodParameter().getParameterIndex();
     }
 
     /** Turns a method-parameter path such as {@code search.minPrice} into just {@code minPrice}. */
