@@ -21,7 +21,7 @@ import org.springframework.data.repository.query.Param;
 public interface InventoryRepository extends JpaRepository<Inventory, Long> {
 
     /** Availability of one product in one active warehouse; used by the allocation snapshot. */
-    record WarehouseStock(Long productId, Long warehouseId, int available) {
+    record WarehouseStock(Long productId, Long warehouseId, int priority, int available) {
     }
 
     record ProductAvailability(Long productId, long available) {
@@ -91,7 +91,7 @@ public interface InventoryRepository extends JpaRepository<Inventory, Long> {
     /** Per-warehouse availability across active warehouses, in allocation order (priority, then id). */
     @Query("""
             select new com.ecommerce.oms.inventory.InventoryRepository$WarehouseStock(
-                       i.product.id, w.id, i.onHand - i.reserved)
+                       i.product.id, w.id, w.priority, i.onHand - i.reserved)
               from Inventory i join i.warehouse w
              where w.active = true and i.product.id in :productIds
              order by w.priority asc, w.id asc

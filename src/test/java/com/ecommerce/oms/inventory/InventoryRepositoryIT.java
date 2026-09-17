@@ -151,6 +151,7 @@ class InventoryRepositoryIT extends AbstractIntegrationTest {
 
         assertThat(snapshot).extracting(WarehouseStock::warehouseId).containsExactly(blr.getId(), mum.getId());
         assertThat(snapshot).extracting(WarehouseStock::available).containsExactly(6, 3);
+        assertThat(snapshot).extracting(WarehouseStock::priority).containsExactly(1, 2);
         assertThat(inventoryRepository.totalAvailability(List.of(product.getId())))
                 .singleElement()
                 .satisfies(t -> assertThat(t.available()).isEqualTo(9));
