@@ -1,0 +1,2 @@
+-- V1: baseline. Intentionally empty; it establishes the Flyway history table.
+-- Feature tables are added one migration per phase (see docs/design/12-implementation-plan.md).
