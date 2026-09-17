@@ -12,7 +12,6 @@ import com.ecommerce.oms.pricing.entity.Coupon;
 import com.ecommerce.oms.support.AbstractIntegrationTest;
 import com.ecommerce.oms.user.entity.User;
 import java.math.BigDecimal;
-import java.time.Clock;
 import java.time.Instant;
 import java.util.Map;
 import org.junit.jupiter.api.DisplayName;
@@ -30,9 +29,6 @@ class CouponAdminIT extends AbstractIntegrationTest {
 
     @Autowired
     TransactionTemplate tx;
-
-    @Autowired
-    Clock clock;
 
     static CouponRequest request(String code, DiscountType type, String value, String cap, Long categoryId) {
         return new CouponRequest(code, "desc", type, new BigDecimal(value), cap == null ? null : new BigDecimal(cap),

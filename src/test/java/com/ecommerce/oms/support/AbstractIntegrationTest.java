@@ -50,10 +50,14 @@ public abstract class AbstractIntegrationTest {
     @Qualifier(AsyncConfig.EVENT_EXECUTOR)
     protected ThreadPoolTaskExecutor eventExecutor;
 
+    @Autowired
+    protected MutableClock clock;
+
     /** Let the previous test's after-commit listeners finish before truncating, or their rows leak into this test. */
     @BeforeEach
     void cleanDatabase() {
         awaitListeners();
+        clock.reset();
         cleaner.clean();
     }
 

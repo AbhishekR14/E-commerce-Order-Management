@@ -9,7 +9,6 @@ import com.ecommerce.oms.inventory.InventoryRepository.WarehouseStock;
 import com.ecommerce.oms.inventory.entity.Inventory;
 import com.ecommerce.oms.support.AbstractIntegrationTest;
 import com.ecommerce.oms.warehouse.entity.Warehouse;
-import java.time.Clock;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -29,9 +28,6 @@ class InventoryRepositoryIT extends AbstractIntegrationTest {
 
     @Autowired
     TransactionTemplate tx;
-
-    @Autowired
-    Clock clock;
 
     Product product;
     Warehouse blr;

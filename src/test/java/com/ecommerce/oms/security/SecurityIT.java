@@ -27,9 +27,6 @@ class SecurityIT extends AbstractIntegrationTest {
     @Autowired
     JwtProperties jwtProperties;
 
-    @Autowired
-    Clock clock;
-
     @Test
     void noToken_401_problemDetail() throws Exception {
         mvc.perform(get("/api/v1/users/me"))
