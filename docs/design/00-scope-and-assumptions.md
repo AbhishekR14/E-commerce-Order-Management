@@ -68,3 +68,6 @@ Build a single-deployable Spring Boot backend for e-commerce order management. I
 - **2026-09-17 (Phase 1):** Doc 10 gave `422` for staff creation without a warehouse, but doc 03 had no matching code. Agreed: new code `USER_ROLE_INVALID` (422) for every bad role/warehouse combination on `POST /admin/users` and `PATCH /admin/users/{id}`. Added to doc 03.
 - **2026-09-17 (Phase 1):** `UnauthorizedException` (401) added to the `ApiException` hierarchy; it is needed for `INVALID_CREDENTIALS`, which none of the four subclasses in `CLAUDE.md` can carry.
 - **2026-09-17 (Phase 1):** Warehouse existence/active validation for staff users is deferred to Phase 3 (when the `warehouses` table exists), as the implementation plan allows. Until then any `warehouseId` is accepted.
+- **2026-09-17 (Phase 2):** `InvalidRequestException` (400, `VALIDATION_FAILED`) added to the `ApiException` hierarchy for rules Bean Validation cannot express, e.g. changing a SKU on `PUT /admin/products/{id}` (doc 03 says `400`).
+- **2026-09-17 (Phase 2):** A product's `categoryId` must reference an **active** category; an inactive or unknown one gives `404 NOT_FOUND` (doc 03 did not say). Likewise a category's `parentId`.
+- **2026-09-17 (Phase 2):** `products` gets a plain index on `name` rather than `LOWER(name)`: H2 has no expression indexes (doc 02 allows the fallback).
