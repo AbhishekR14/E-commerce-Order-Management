@@ -1,3 +1,7 @@
+# Hosts such as Railway/Render inject PORT; default stays 8080 locally.
+server:
+  port: ${PORT:8080}
+
 spring:
   application:
     name: oms
