@@ -81,3 +81,6 @@ Build a single-deployable Spring Boot backend for e-commerce order management. I
 - **2026-09-17 (Phase 6):** `statusHistory[].actorId` (user id, null = system) replaces the `actor` email shown in doc 03, avoiding a users join per history row.
 - **2026-09-17 (Phase 6):** `CheckoutFacade` also retries transient `ConcurrencyFailureException`s (lock timeouts, deadlock victims) like a lost stock race, up to `app.checkout.max-retries`.
 - **2026-09-17 (Phase 6):** Cancel endpoints (`POST /orders/{id}/cancel`, `POST /admin/orders/{id}/cancel`) are implemented in Phase 9 per the plan.
+- **2026-09-17 (Phase 7):** The optional reconciliation `@Scheduled` job for lost events is not built; the limitation and the outbox upgrade path are documented (README, Phase 12).
+- **2026-09-17 (Phase 7):** Routing logic lives in `FulfillmentRoutingService` (REQUIRES_NEW) called by `FulfillmentRoutingListener`, so the transaction goes through the Spring proxy; the same service is what Phase 9 calls directly in the cancel-then-routing race test.
+- **2026-09-17 (Phase 7):** `NotificationListener` skips `OrderStatusChangedEvent(to = CANCELLED)` because `OrderCancelledEvent` (with the refund amount) covers it; `ShipmentStatusChangedEvent` notifies only for SHIPPED and DELIVERED, as doc 07 says.
