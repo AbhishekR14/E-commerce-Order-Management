@@ -8,7 +8,9 @@ import com.ecommerce.oms.order.entity.OrderStatusHistory;
 import com.ecommerce.oms.payment.PaymentRepository;
 import com.ecommerce.oms.payment.RefundRepository;
 import java.time.Clock;
+import com.ecommerce.oms.fulfillment.ShipmentStatus;
 import java.time.Instant;
+import java.util.Collection;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -55,6 +57,21 @@ public class OrderService {
         order.addHistory(history(from, to, actorId, note));
         log.info("Order {} {} -> {} by {}", order.getOrderNumber(), from, to, actorId == null ? "system" : actorId);
         events.publishEvent(new OrderStatusChangedEvent(order.getId(), order.getCustomerId(), from, to, actorId));
+    }
+
+    /**
+     * Re-derives the order status from its shipments after a shipment change (doc 04), stepping through the
+     * intermediate statuses so every transition is recorded. No-op when nothing changes.
+     */
+    @Transactional(propagation = Propagation.MANDATORY)
+    public void recomputeFromShipments(Order order, Collection<ShipmentStatus> shipmentStatuses, Long actorId) {
+        Optional<OrderStatus> target = OrderStatusDerivation.targetStatus(shipmentStatuses);
+        if (target.isEmpty()) {
+            return;
+        }
+        while (OrderStatusDerivation.shouldAdvance(order.getStatus(), target.get())) {
+            changeStatus(order, OrderStatusDerivation.next(order.getStatus()), actorId, "Derived from shipments");
+        }
     }
 
     /** The first history row of a new order (null -> PLACED). Checkout publishes OrderPlacedEvent instead. */
