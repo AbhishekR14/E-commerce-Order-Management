@@ -42,6 +42,12 @@ public class ProductService {
         return toResponse(product);
     }
 
+    /** An existing product regardless of active flag (callers decide how to report inactive ones). */
+    @Transactional(readOnly = true)
+    public Product findExisting(Long id) {
+        return productRepository.findById(id).orElseThrow(() -> new NotFoundException("Product", id));
+    }
+
     /** An existing, active product for other services (cart, checkout). */
     @Transactional(readOnly = true)
     public Product requireActive(Long id) {
