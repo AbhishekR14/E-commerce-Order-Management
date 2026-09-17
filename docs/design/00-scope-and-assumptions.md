@@ -1,0 +1,66 @@
+# 00 — Scope & Assumptions
+
+## Goal
+
+Build a single-deployable Spring Boot backend for e-commerce order management. It must:
+- never oversell stock across warehouses
+- place orders atomically (cart + inventory + payment in one transaction)
+- run fulfillment routing, notifications and auditing asynchronously, after the checkout response
+
+## In scope (features)
+
+| Area | Features |
+|---|---|
+| Auth & RBAC | Customer self-registration and JWT login. Admin creates staff and admin users. Roles: `ADMIN`, `CUSTOMER`, `WAREHOUSE_STAFF`. Staff are bound to one warehouse. |
+| Catalog | Hierarchical categories (each with a tax rate); products (SKU, price, category); soft delete; public browse with search, filter, sort and pagination; product detail with total available stock |
+| Warehouses | CRUD (admin), priority for allocation, activate/deactivate |
+| Inventory | Per product per warehouse `on_hand` / `reserved`; admin stock adjustments; immutable movement ledger; low-stock query |
+| Cart | One cart per customer; add, update, remove, clear; price preview with coupon |
+| Pricing | Coupons: percent or flat, optional cap, minimum order, validity window, global and per-customer limits, optional category scope. Per-category tax on the discounted amount. Price snapshot on order lines. |
+| Checkout | Idempotent (`Idempotency-Key`), single DB transaction: price → reserve stock (multi-warehouse split) → mock payment → order `PLACED` → clear cart |
+| Orders | Customer order history and detail (items, shipments, status history); admin order search |
+| Fulfillment | Async routing creates one shipment per warehouse. Staff move shipments PENDING → PACKED → SHIPPED → DELIVERED. Order status is derived from its shipments. |
+| Cancellation | Customer (own order) or admin, before anything has shipped; releases or restocks inventory; full mock refund; coupon usage released |
+| Returns & refunds | Item-level partial returns within a window; approve/reject; receive with restock flag; prorated mock refund; order becomes `PARTIALLY_RETURNED` / `RETURNED` |
+| Async pipeline | Spring events after commit: fulfillment routing, customer notifications (stored in DB), audit log |
+| Cross-cutting | Flyway, validation, RFC 7807 errors, OpenAPI/Swagger, seed data, unit + integration + concurrency tests |
+
+## Out of scope (per brief, or deliberate)
+
+- UI
+- Docker, CI/CD, deployment
+- Microservices and message brokers
+- OAuth/SSO/MFA; refresh tokens; password reset
+- A real payment gateway; payment failures; multi-currency
+- Shipping fees, carrier integration, geo-based routing
+- Product variants, images, reviews, wishlists
+- Email/SMS delivery (notifications are stored and logged only)
+- Production observability
+
+## Assumptions
+
+1. Single currency (INR). Money is `BigDecimal`, scale 2, `HALF_UP`.
+2. A product *is* the sellable SKU; there are no variants.
+3. Product prices **exclude** tax. Tax = category `tax_rate` % applied to `(line subtotal − line discount)`, per line. Each category has its own rate (no inheritance).
+4. No shipping fee.
+5. **Payment always succeeds.** `MockPaymentService` records a `SUCCESS` payment with a generated transaction ref. Refunds are also mocked and recorded immediately as `COMPLETED`.
+6. At most one coupon per order.
+7. Each staff user is assigned to exactly one warehouse. Admins can act on any warehouse.
+8. Warehouse selection uses `warehouses.priority` (lower = preferred), then id. No geography.
+9. Stock is **reserved** at checkout and **deducted** from `on_hand` when the shipment is `PACKED`.
+10. Adding to the cart does not reserve stock. Availability is checked (soft) on add and enforced (hard) at checkout.
+11. Cancellation is allowed while the order is `PLACED`, `CONFIRMED` or `PACKED` (nothing shipped yet). The refund is the full amount paid.
+12. Returns are allowed only when the order is `DELIVERED` or `PARTIALLY_RETURNED`, within `app.returns.window-days` (default 7) of `delivered_at`.
+13. A return request is handled by one warehouse: the warehouse of the first allocation of the first returned item. Restockable items go back to that warehouse's `on_hand`.
+14. The refund for returned units is a proration of the line total (which already includes tax and is net of discount). See doc 09.
+15. Partial returns do not claw back the coupon; proration already handles it. Coupon usage is released only on full cancellation.
+16. Products, categories and warehouses are soft-deleted (`active=false`). Inactive products cannot be added to the cart or checked out.
+17. `Idempotency-Key` is required on checkout. Repeating the same key for the same customer returns the original order (`200`).
+18. The order status is the *least advanced* status among its non-cancelled shipments (doc 04).
+19. The async pipeline is in-memory. An event can be lost if the JVM dies between commit and handling. This is a known limitation; the fix is a transactional outbox.
+20. The coupon `min_order_amount` is compared to the eligible subtotal (lines the coupon applies to).
+21. JWT lifetime is 60 minutes. There is no logout or revocation.
+
+## Deviations
+
+*(Record here any agreed change from these specs during implementation, with the date and reason.)*
