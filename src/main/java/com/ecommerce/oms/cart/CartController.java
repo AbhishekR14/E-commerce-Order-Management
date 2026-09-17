@@ -3,6 +3,8 @@ package com.ecommerce.oms.cart;
 import com.ecommerce.oms.cart.dto.AddCartItemRequest;
 import com.ecommerce.oms.cart.dto.CartResponse;
 import com.ecommerce.oms.cart.dto.UpdateCartItemRequest;
+import com.ecommerce.oms.pricing.PriceQuote;
+import com.ecommerce.oms.pricing.dto.QuoteRequest;
 import com.ecommerce.oms.security.AuthUser;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -55,6 +57,12 @@ public class CartController {
     @Operation(summary = "Remove a line")
     public CartResponse remove(@AuthenticationPrincipal AuthUser principal, @PathVariable Long productId) {
         return cartService.removeItem(principal.id(), productId);
+    }
+
+    @PostMapping("/quote")
+    @Operation(summary = "Price the cart with an optional coupon (no order is placed)")
+    public PriceQuote quote(@AuthenticationPrincipal AuthUser principal, @Valid @RequestBody QuoteRequest request) {
+        return cartService.quote(principal.id(), request.couponCode());
     }
 
     @DeleteMapping

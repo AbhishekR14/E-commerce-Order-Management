@@ -11,6 +11,9 @@ import com.ecommerce.oms.common.exception.ConflictException;
 import com.ecommerce.oms.common.exception.ErrorCode;
 import com.ecommerce.oms.common.exception.InvalidRequestException;
 import com.ecommerce.oms.common.exception.NotFoundException;
+import com.ecommerce.oms.pricing.PriceQuote;
+import com.ecommerce.oms.pricing.PricingLine;
+import com.ecommerce.oms.pricing.PricingService;
 import java.util.List;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
@@ -32,6 +35,7 @@ public class CartService {
     private final CartRepository cartRepository;
     private final ProductService productService;
     private final InventoryQueryPort inventoryQueryPort;
+    private final PricingService pricingService;
 
     @Transactional
     public CartResponse getCart(Long customerId) {
@@ -79,6 +83,32 @@ public class CartService {
     @Transactional
     public void clear(Long customerId) {
         cartOf(customerId).getItems().clear();
+    }
+
+    /** Prices the cart with an optional coupon without placing an order. Same rules as checkout (doc 08). */
+    @Transactional
+    public PriceQuote quote(Long customerId, String couponCode) {
+        Cart cart = cartOf(customerId);
+        return pricingService.quote(customerId, pricingLines(cart), couponCode);
+    }
+
+    /**
+     * Snapshot of the cart as pricing input. Fails with CART_EMPTY or PRODUCT_UNAVAILABLE, the same checks
+     * checkout applies, so a quote that succeeds will price identically at checkout.
+     */
+    @Transactional(readOnly = true)
+    public List<PricingLine> pricingLines(Cart cart) {
+        if (cart.isEmpty()) {
+            throw new BusinessRuleException(ErrorCode.CART_EMPTY, "The cart is empty");
+        }
+        return cart.getItems().stream().map(item -> {
+            Product product = item.getProduct();
+            if (!product.isActive()) {
+                throw new BusinessRuleException(ErrorCode.PRODUCT_UNAVAILABLE,
+                        "Product " + product.getSku() + " is no longer available");
+            }
+            return PricingLine.of(product, item.getQuantity());
+        }).toList();
     }
 
     /** The cart entity for checkout/pricing (same transaction as the caller). */
