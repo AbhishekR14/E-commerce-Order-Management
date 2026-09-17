@@ -1,0 +1,200 @@
+### E-commerce OMS — full happy path (IntelliJ HTTP Client / VS Code REST Client)
+### Run against a fresh `./mvnw spring-boot:run` (H2 + seed). Requests reuse tokens captured from the login responses.
+
+@base = http://localhost:8080/api/v1
+
+### 1. Log in as the demo customer
+# @name loginAlice
+POST {{base}}/auth/login
+Content-Type: application/json
+
+{"email": "alice@oms.test", "password": "Customer@123"}
+
+> {% client.global.set("alice", response.body.accessToken); %}
+
+### Log in as BLR staff
+# @name loginBlr
+POST {{base}}/auth/login
+Content-Type: application/json
+
+{"email": "staff.blr@oms.test", "password": "Staff@123"}
+
+> {% client.global.set("staffBlr", response.body.accessToken); %}
+
+### Log in as MUM staff
+# @name loginMum
+POST {{base}}/auth/login
+Content-Type: application/json
+
+{"email": "staff.mum@oms.test", "password": "Staff@123"}
+
+> {% client.global.set("staffMum", response.body.accessToken); %}
+
+### Log in as admin
+# @name loginAdmin
+POST {{base}}/auth/login
+Content-Type: application/json
+
+{"email": "admin@oms.test", "password": "Admin@123"}
+
+> {% client.global.set("admin", response.body.accessToken); %}
+
+### 2. Browse the catalog (public)
+GET {{base}}/categories
+
+###
+GET {{base}}/products?q=galaxy
+
+###
+GET {{base}}/products/5
+
+### 3. Cart: 1 x Galaxy S24 (BLR/DEL) and 1 x MacBook Air (MUM only): no single warehouse covers both
+POST {{base}}/cart/items
+Authorization: Bearer {{alice}}
+Content-Type: application/json
+
+{"productId": 2, "quantity": 1}
+
+###
+POST {{base}}/cart/items
+Authorization: Bearer {{alice}}
+Content-Type: application/json
+
+{"productId": 5, "quantity": 1}
+
+### Quote with a coupon (no order placed)
+POST {{base}}/cart/quote
+Authorization: Bearer {{alice}}
+Content-Type: application/json
+
+{"couponCode": "WELCOME10"}
+
+### 4. Checkout (idempotent). Send twice: 201 then 200 with the same order.
+# @name checkout
+POST {{base}}/checkout
+Authorization: Bearer {{alice}}
+Idempotency-Key: demo-0001-abcdef
+Content-Type: application/json
+
+{
+  "couponCode": "WELCOME10",
+  "shippingAddress": {"name": "Alice", "line1": "1 MG Road", "city": "Bengaluru", "state": "KA", "pincode": "560001", "phone": "9876543210"}
+}
+
+> {% client.global.set("orderId", response.body.id); %}
+
+### The order: CONFIRMED with two shipments once the async routing has run
+GET {{base}}/orders/{{orderId}}
+Authorization: Bearer {{alice}}
+
+### 5. BLR packs, ships and delivers its shipment
+GET {{base}}/warehouse/shipments
+Authorization: Bearer {{staffBlr}}
+
+###
+PATCH {{base}}/warehouse/shipments/1/status
+Authorization: Bearer {{staffBlr}}
+Content-Type: application/json
+
+{"status": "PACKED"}
+
+###
+PATCH {{base}}/warehouse/shipments/1/status
+Authorization: Bearer {{staffBlr}}
+Content-Type: application/json
+
+{"status": "SHIPPED", "trackingNumber": "TRK-BLR-1"}
+
+###
+PATCH {{base}}/warehouse/shipments/1/status
+Authorization: Bearer {{staffBlr}}
+Content-Type: application/json
+
+{"status": "DELIVERED"}
+
+### MUM does the same for shipment 2
+PATCH {{base}}/warehouse/shipments/2/status
+Authorization: Bearer {{staffMum}}
+Content-Type: application/json
+
+{"status": "PACKED"}
+
+###
+PATCH {{base}}/warehouse/shipments/2/status
+Authorization: Bearer {{staffMum}}
+Content-Type: application/json
+
+{"status": "SHIPPED", "trackingNumber": "TRK-MUM-1"}
+
+###
+PATCH {{base}}/warehouse/shipments/2/status
+Authorization: Bearer {{staffMum}}
+Content-Type: application/json
+
+{"status": "DELIVERED"}
+
+### The order is now DELIVERED
+GET {{base}}/orders/{{orderId}}
+Authorization: Bearer {{alice}}
+
+### 6. Return the Galaxy: request -> approve -> receive (restock) -> pro-rata refund
+# @name createReturn
+POST {{base}}/orders/{{orderId}}/returns
+Authorization: Bearer {{alice}}
+Content-Type: application/json
+
+{"reason": "Screen scratched", "items": [{"orderItemId": 1, "quantity": 1}]}
+
+> {% client.global.set("returnId", response.body.id); client.global.set("returnItemId", response.body.items[0].id); %}
+
+###
+POST {{base}}/warehouse/returns/{{returnId}}/approve
+Authorization: Bearer {{staffBlr}}
+Content-Type: application/json
+
+{"note": "ok"}
+
+###
+POST {{base}}/warehouse/returns/{{returnId}}/receive
+Authorization: Bearer {{staffBlr}}
+Content-Type: application/json
+
+{"items": [{"returnItemId": {{returnItemId}}, "restock": true}]}
+
+### PARTIALLY_RETURNED with a RETURN refund
+GET {{base}}/orders/{{orderId}}
+Authorization: Bearer {{alice}}
+
+### 7. Admin views
+GET {{base}}/admin/inventory?productId=2
+Authorization: Bearer {{admin}}
+
+###
+GET {{base}}/admin/inventory/movements?productId=2
+Authorization: Bearer {{admin}}
+
+###
+GET {{base}}/admin/audit-logs?entityType=ORDER&entityId={{orderId}}
+Authorization: Bearer {{admin}}
+
+###
+GET {{base}}/notifications
+Authorization: Bearer {{alice}}
+
+### Errors worth seeing: a quote on the (now empty) cart -> 422 CART_EMPTY
+POST {{base}}/cart/quote
+Authorization: Bearer {{alice}}
+Content-Type: application/json
+
+{}
+
+###
+POST {{base}}/checkout
+Authorization: Bearer {{alice}}
+Content-Type: application/json
+
+{"shippingAddress": {"name": "Alice", "line1": "1 MG Road", "city": "Bengaluru", "state": "KA", "pincode": "560001", "phone": "9876543210"}}
+
+###
+GET {{base}}/admin/users
+Authorization: Bearer {{staffBlr}}
