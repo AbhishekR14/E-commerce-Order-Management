@@ -22,6 +22,7 @@ public enum ErrorCode {
     INVENTORY_ADJUSTMENT_INVALID(HttpStatus.UNPROCESSABLE_ENTITY, "Inventory adjustment invalid"),
     CATEGORY_IN_USE(HttpStatus.UNPROCESSABLE_ENTITY, "Category in use"),
     CATEGORY_CYCLE(HttpStatus.UNPROCESSABLE_ENTITY, "Category cycle"),
+    USER_ROLE_INVALID(HttpStatus.UNPROCESSABLE_ENTITY, "User role invalid"),
     INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "Internal error");
 
     private final HttpStatus status;
