@@ -110,13 +110,13 @@ class SecurityIT extends AbstractIntegrationTest {
     }
 
     @Test
-    @DisplayName("admin may enter /warehouse/** (rule passes; 404 only because no controller exists yet)")
+    @DisplayName("admin may enter /warehouse/**")
     void admin_warehouseArea_allowed() throws Exception {
         User admin = data.admin();
 
         mvc.perform(getJson("/api/v1/warehouse/shipments", admin))
-                .andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.code").value("NOT_FOUND"));
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalElements").value(0));
     }
 
     @Test

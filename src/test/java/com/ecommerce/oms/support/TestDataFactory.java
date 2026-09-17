@@ -1,5 +1,8 @@
 package com.ecommerce.oms.support;
 
+import static java.util.concurrent.TimeUnit.SECONDS;
+import static org.awaitility.Awaitility.await;
+
 import com.ecommerce.oms.catalog.CategoryRepository;
 import com.ecommerce.oms.catalog.ProductRepository;
 import com.ecommerce.oms.catalog.entity.Category;
@@ -12,7 +15,10 @@ import com.ecommerce.oms.inventory.entity.Inventory;
 import com.ecommerce.oms.pricing.CouponRepository;
 import com.ecommerce.oms.pricing.DiscountType;
 import com.ecommerce.oms.pricing.entity.Coupon;
+import com.ecommerce.oms.fulfillment.ShipmentRepository;
+import com.ecommerce.oms.order.CheckoutFacade;
 import com.ecommerce.oms.order.dto.CheckoutRequest;
+import com.ecommerce.oms.order.dto.OrderResponse;
 import com.ecommerce.oms.order.dto.ShippingAddressRequest;
 import com.ecommerce.oms.user.Role;
 import com.ecommerce.oms.user.UserRepository;
@@ -46,6 +52,8 @@ public class TestDataFactory {
     private final InventoryRepository inventoryRepository;
     private final CouponRepository couponRepository;
     private final CartRepository cartRepository;
+    private final CheckoutFacade checkoutFacade;
+    private final ShipmentRepository shipmentRepository;
     private final Clock clock;
 
     private String hash;
@@ -187,6 +195,21 @@ public class TestDataFactory {
 
     public static CheckoutRequest checkoutRequest(String couponCode) {
         return new CheckoutRequest(couponCode, address());
+    }
+
+    private int orderSeq;
+
+    /** Places an order from the customer cart through the real checkout path (no HTTP). */
+    public OrderResponse placeOrder(User customer, String couponCode) {
+        return checkoutFacade.checkout(customer.getId(), "factory-key-" + (++orderSeq) + "-" + customer.getId(),
+                checkoutRequest(couponCode)).order();
+    }
+
+    /** Places the order and waits until the async routing has created its shipments (order CONFIRMED). */
+    public OrderResponse placedAndRoutedOrder(User customer, String couponCode) {
+        OrderResponse order = placeOrder(customer, couponCode);
+        await().atMost(5, SECONDS).until(() -> shipmentRepository.existsByOrderId(order.id()));
+        return order;
     }
 
     /** BCrypt is slow by design; hash the shared password once per JVM. */
