@@ -44,4 +44,8 @@ public class Refund extends BaseEntity {
 
     @Column(name = "transaction_ref", nullable = false, length = 64)
     private String transactionRef;
+
+    /** Set for RETURN refunds; null for cancellations. */
+    @Column(name = "return_request_id")
+    private Long returnRequestId;
 }

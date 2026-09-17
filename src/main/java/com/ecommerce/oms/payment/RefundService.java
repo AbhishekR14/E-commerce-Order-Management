@@ -37,9 +37,14 @@ public class RefundService {
         return Money.subtract(payment.getAmount(), refundRepository.totalRefunded(payment.getId()));
     }
 
-    /** Refunds {@code amount} in the caller's transaction and publishes {@link RefundIssuedEvent}. */
+    /**
+     * Refunds {@code amount} in the caller's transaction and publishes {@link RefundIssuedEvent}.
+     *
+     * @param returnRequestId the return this refund settles, or null for a cancellation
+     */
     @Transactional(propagation = Propagation.MANDATORY)
-    public Refund issue(Long orderId, Long customerId, BigDecimal amount, RefundReason reason, Long actorId) {
+    public Refund issue(Long orderId, Long customerId, BigDecimal amount, RefundReason reason, Long returnRequestId,
+                        Long actorId) {
         BigDecimal scaled = Money.scale(amount);
         if (!Money.isPositive(scaled)) {
             throw new IllegalArgumentException("Refund amount must be positive: " + scaled);
@@ -58,6 +63,7 @@ public class RefundService {
         refund.setReason(reason);
         refund.setStatus(result.status());
         refund.setTransactionRef(result.transactionRef());
+        refund.setReturnRequestId(returnRequestId);
         refund = refundRepository.save(refund);
         log.info("Refund {} of {} for order {} ({})", refund.getId(), scaled, orderId, reason);
         events.publishEvent(new RefundIssuedEvent(refund.getId(), orderId, customerId, scaled, reason, actorId));

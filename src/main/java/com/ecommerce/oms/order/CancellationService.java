@@ -94,7 +94,7 @@ public class CancellationService {
         // 4. full refund of whatever is still refundable
         BigDecimal refundAmount = refundService.remainingRefundable(orderId);
         if (Money.isPositive(refundAmount)) {
-            refundService.issue(orderId, order.getCustomerId(), refundAmount, RefundReason.CANCELLATION, actor.id());
+            refundService.issue(orderId, order.getCustomerId(), refundAmount, RefundReason.CANCELLATION, null, actor.id());
         }
 
         // 5. status + events

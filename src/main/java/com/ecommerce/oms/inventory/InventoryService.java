@@ -173,6 +173,24 @@ public class InventoryService {
         return ok;
     }
 
+    /**
+     * Return received with restock: units go back on the shelf at the return warehouse. Creates the stock row
+     * when the product was never stocked there (doc 09 step 1).
+     */
+    @Transactional(propagation = Propagation.MANDATORY)
+    public void restockOrCreate(Long productId, Long warehouseId, int qty, Long returnId, Long actorId) {
+        if (inventoryRepository.restock(productId, warehouseId, qty, clock.instant()) == 0) {
+            Inventory row = new Inventory();
+            row.setProduct(productRepository.getReferenceById(productId));
+            row.setWarehouse(warehouseService.require(warehouseId));
+            row.setOnHand(qty);
+            row.setReserved(0);
+            inventoryRepository.save(row);
+        }
+        recordMovement(productId, warehouseId, MovementType.RETURN_RESTOCK, qty, ReferenceType.RETURN, returnId, null,
+                actorId);
+    }
+
     // ---- helpers ----------------------------------------------------------------------------
 
     private Product requireProduct(Long id) {
