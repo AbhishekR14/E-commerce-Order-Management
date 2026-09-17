@@ -1,10 +1,16 @@
 package com.ecommerce.oms.support;
 
+import static java.util.concurrent.TimeUnit.SECONDS;
+import static org.awaitility.Awaitility.await;
+
+import com.ecommerce.oms.common.config.AsyncConfig;
 import com.ecommerce.oms.security.JwtService;
 import com.ecommerce.oms.user.entity.User;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.HttpHeaders;
@@ -40,9 +46,20 @@ public abstract class AbstractIntegrationTest {
     @Autowired
     protected JwtService jwtService;
 
+    @Autowired
+    @Qualifier(AsyncConfig.EVENT_EXECUTOR)
+    protected ThreadPoolTaskExecutor eventExecutor;
+
+    /** Let the previous test's after-commit listeners finish before truncating, or their rows leak into this test. */
     @BeforeEach
     void cleanDatabase() {
+        awaitListeners();
         cleaner.clean();
+    }
+
+    protected void awaitListeners() {
+        await().atMost(10, SECONDS).until(() ->
+                eventExecutor.getActiveCount() == 0 && eventExecutor.getThreadPoolExecutor().getQueue().isEmpty());
     }
 
     /** {@code Authorization} header value for the given user (token minted directly, no login round-trip). */

@@ -2,6 +2,8 @@ package com.ecommerce.oms.order;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.hasSize;
+import static java.util.concurrent.TimeUnit.SECONDS;
+import static org.awaitility.Awaitility.await;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -135,6 +137,43 @@ class CheckoutIT extends AbstractIntegrationTest {
         mvc.perform(getJson("/api/v1/orders", alice))
                 .andExpect(jsonPath("$.totalElements").value(1))
                 .andExpect(jsonPath("$.content[0].id").value(order.id()));
+
+        // after commit (doc 07): routing created one shipment per warehouse and moved the order to CONFIRMED
+        await().atMost(5, SECONDS).untilAsserted(() ->
+                mvc.perform(getJson("/api/v1/orders/" + order.id(), alice))
+                        .andExpect(jsonPath("$.status").value("CONFIRMED"))
+                        .andExpect(jsonPath("$.shipments", hasSize(1)))
+                        .andExpect(jsonPath("$.shipments[0].warehouseCode").value("BLR-1"))
+                        .andExpect(jsonPath("$.shipments[0].status").value("PENDING"))
+                        .andExpect(jsonPath("$.shipments[0].items", hasSize(2)))
+                        .andExpect(jsonPath("$.statusHistory", hasSize(2)))
+                        .andExpect(jsonPath("$.statusHistory[1].to").value("CONFIRMED"))
+                        .andExpect(jsonPath("$.statusHistory[1].actorId").doesNotExist()));
+        // ... the customer was notified and the events were audited
+        await().atMost(5, SECONDS).untilAsserted(() -> {
+            assertThat(jdbc.queryForObject("select count(*) from notifications where user_id = ? and type = ?",
+                    Integer.class, alice.getId(), "ORDER_STATUS")).isEqualTo(1);
+            assertThat(jdbc.queryForObject("select count(*) from audit_logs where entity_type = ? and entity_id = ?",
+                    Integer.class, "ORDER", order.id())).isEqualTo(2);   // OrderPlaced + OrderStatusChanged
+        });
+    }
+
+    @Test
+    @DisplayName("a rolled-back checkout leaves no shipments, notifications or audit rows behind")
+    void rollback_noSideEffects() throws Exception {
+        data.stock(phone, blr, 1);
+        data.cartWith(alice, phone, 2);
+
+        mvc.perform(checkout(alice, "key-0016-rollback", TestDataFactory.checkoutRequest(null)))
+                .andExpect(status().isConflict());
+
+        // give the executor a moment: nothing should ever arrive
+        await().pollDelay(500, java.util.concurrent.TimeUnit.MILLISECONDS).atMost(2, SECONDS).untilAsserted(() -> {
+            assertThat(jdbc.queryForObject("select count(*) from shipments", Integer.class)).isZero();
+            assertThat(jdbc.queryForObject("select count(*) from notifications", Integer.class)).isZero();
+            assertThat(jdbc.queryForObject("select count(*) from audit_logs", Integer.class)).isZero();
+        });
+        assertThat(orderRepository.count()).isZero();
     }
 
     @Test
@@ -304,8 +343,12 @@ class CheckoutIT extends AbstractIntegrationTest {
                 .andExpect(jsonPath("$.totalElements").value(2));
         mvc.perform(getJson("/api/v1/admin/orders?customerId=" + bob.getId(), admin))
                 .andExpect(jsonPath("$.totalElements").value(1));
-        mvc.perform(getJson("/api/v1/admin/orders?status=PLACED&from=2020-01-01T00:00:00Z&to=2099-01-01T00:00:00Z", admin))
+        mvc.perform(getJson("/api/v1/admin/orders?from=2020-01-01T00:00:00Z&to=2099-01-01T00:00:00Z", admin))
                 .andExpect(jsonPath("$.totalElements").value(2));
+        // routing runs after commit on another thread: both orders end up CONFIRMED
+        await().atMost(5, SECONDS).untilAsserted(() ->
+                mvc.perform(getJson("/api/v1/admin/orders?status=CONFIRMED", admin))
+                        .andExpect(jsonPath("$.totalElements").value(2)));
         mvc.perform(getJson("/api/v1/admin/orders?to=2020-01-01T00:00:00Z", admin))
                 .andExpect(jsonPath("$.totalElements").value(0));
         mvc.perform(getJson("/api/v1/admin/orders/" + aliceOrder, admin))
