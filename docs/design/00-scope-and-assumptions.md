@@ -71,3 +71,7 @@ Build a single-deployable Spring Boot backend for e-commerce order management. I
 - **2026-09-17 (Phase 2):** `InvalidRequestException` (400, `VALIDATION_FAILED`) added to the `ApiException` hierarchy for rules Bean Validation cannot express, e.g. changing a SKU on `PUT /admin/products/{id}` (doc 03 says `400`).
 - **2026-09-17 (Phase 2):** A product's `categoryId` must reference an **active** category; an inactive or unknown one gives `404 NOT_FOUND` (doc 03 did not say). Likewise a category's `parentId`.
 - **2026-09-17 (Phase 2):** `products` gets a plain index on `name` rather than `LOWER(name)`: H2 has no expression indexes (doc 02 allows the fallback).
+- **2026-09-17 (Phase 3):** `lowStock=true` means `on_hand − reserved ≤ low_stock_threshold` (doc 03 did not define the comparison).
+- **2026-09-17 (Phase 3):** A staff user's `warehouseId` must reference an **active** warehouse; unknown or inactive gives `404 NOT_FOUND` (doc 10 said `422 / 404`; no 422 code existed and this matches the Phase 2 rule for categories).
+- **2026-09-17 (Phase 3):** Stock adjustments require the product and warehouse to exist but not to be active, so stock of a delisted product or a closed warehouse can still be corrected. Only active warehouses count towards `availableQuantity`.
+- **2026-09-17 (Phase 3):** The guarded updates are JPQL (not native SQL) and set `updated_at` from the application `Clock` (`:now` parameter) rather than `CURRENT_TIMESTAMP`, keeping all time under the Clock as CLAUDE.md requires.
