@@ -207,8 +207,9 @@ See [`docs/design/00-scope-and-assumptions.md`](docs/design/00-scope-and-assumpt
 - **No caching**, rate limiting, observability beyond logs, or horizontal-scaling concerns (the design allows it: the
   API is stateless and all concurrency control is in the database).
 - No product variants, images, reviews, shipping fees, multi-currency, email/SMS delivery, password reset.
-- H2 is not Postgres. The migrations use only portable SQL and the application was verified once against Neon, but the
-  concurrency proof relies on the DB re-evaluating the UPDATE guard under contention, which both engines do.
+- H2 is not Postgres. The migrations use only portable SQL and the application was verified against Neon
+  (PostgreSQL 18: all migrations, the seeder and the whole walkthrough). The concurrency tests run on H2; the
+  no-oversell guarantee relies on the database re-evaluating the UPDATE guard under contention, which both engines do.
 
 ## Testing
 
