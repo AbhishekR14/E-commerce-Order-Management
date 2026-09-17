@@ -96,7 +96,7 @@ class SecurityIT extends AbstractIntegrationTest {
 
     @Test
     void staff_customerAreas_403() throws Exception {
-        User staff = data.staff(1L);
+        User staff = data.staff(data.warehouse("BLR-1", 1));
 
         mvc.perform(postJson("/api/v1/checkout", "{}", staff))
                 .andExpect(status().isForbidden())

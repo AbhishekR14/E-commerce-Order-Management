@@ -11,6 +11,7 @@ import com.ecommerce.oms.user.dto.LoginRequest;
 import com.ecommerce.oms.user.dto.LoginResponse;
 import com.ecommerce.oms.user.dto.RegisterRequest;
 import com.ecommerce.oms.user.entity.User;
+import com.ecommerce.oms.warehouse.entity.Warehouse;
 import java.util.Map;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -123,7 +124,8 @@ class AuthIT extends AbstractIntegrationTest {
     @Test
     void me_worksForEveryRole() throws Exception {
         User admin = data.admin();
-        User staff = data.staff(5L);
+        Warehouse blr = data.warehouse("BLR-1", 1);
+        User staff = data.staff(blr);
 
         mvc.perform(getJson("/api/v1/users/me", admin))
                 .andExpect(status().isOk())
@@ -131,6 +133,6 @@ class AuthIT extends AbstractIntegrationTest {
         mvc.perform(getJson("/api/v1/users/me", staff))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.role").value("WAREHOUSE_STAFF"))
-                .andExpect(jsonPath("$.warehouseId").value(5));
+                .andExpect(jsonPath("$.warehouseId").value(blr.getId()));
     }
 }

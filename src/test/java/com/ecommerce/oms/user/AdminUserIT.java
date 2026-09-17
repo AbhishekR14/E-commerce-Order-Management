@@ -12,6 +12,7 @@ import com.ecommerce.oms.user.dto.LoginRequest;
 import com.ecommerce.oms.user.dto.UpdateUserRequest;
 import com.ecommerce.oms.user.dto.UserResponse;
 import com.ecommerce.oms.user.entity.User;
+import com.ecommerce.oms.warehouse.entity.Warehouse;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -25,21 +26,22 @@ class AdminUserIT extends AbstractIntegrationTest {
     @Test
     void createStaff_201() throws Exception {
         User admin = data.admin();
+        Warehouse blr = data.warehouse("BLR-1", 1);
 
         MvcResult result = mvc.perform(postJson("/api/v1/admin/users",
-                        new CreateUserRequest("Staff.BLR@oms.test", "Staff123", "BLR Staff", Role.WAREHOUSE_STAFF, 1L),
+                        new CreateUserRequest("Staff.BLR@oms.test", "Staff123", "BLR Staff", Role.WAREHOUSE_STAFF, blr.getId()),
                         admin))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.email").value("staff.blr@oms.test"))
                 .andExpect(jsonPath("$.role").value("WAREHOUSE_STAFF"))
-                .andExpect(jsonPath("$.warehouseId").value(1))
+                .andExpect(jsonPath("$.warehouseId").value(blr.getId()))
                 .andReturn();
 
         // the new staff member can log in
         UserResponse created = readBody(result, UserResponse.class);
         mvc.perform(postJson("/api/v1/auth/login", new LoginRequest(created.email(), "Staff123"), null))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.user.warehouseId").value(1));
+                .andExpect(jsonPath("$.user.warehouseId").value(blr.getId()));
     }
 
     @Test
@@ -57,6 +59,7 @@ class AdminUserIT extends AbstractIntegrationTest {
     @DisplayName("bad role/warehouse combinations -> 422 USER_ROLE_INVALID")
     void create_roleWarehouseRules_422() throws Exception {
         User admin = data.admin();
+        Warehouse blr = data.warehouse("BLR-1", 1);
 
         mvc.perform(postJson("/api/v1/admin/users",
                         new CreateUserRequest("s@oms.test", "Staff123", "S", Role.WAREHOUSE_STAFF, null), admin))
@@ -64,7 +67,7 @@ class AdminUserIT extends AbstractIntegrationTest {
                 .andExpect(jsonPath("$.code").value("USER_ROLE_INVALID"));
 
         mvc.perform(postJson("/api/v1/admin/users",
-                        new CreateUserRequest("a@oms.test", "Admin123", "A", Role.ADMIN, 1L), admin))
+                        new CreateUserRequest("a@oms.test", "Admin123", "A", Role.ADMIN, blr.getId()), admin))
                 .andExpect(status().isUnprocessableEntity())
                 .andExpect(jsonPath("$.code").value("USER_ROLE_INVALID"));
 
@@ -72,6 +75,16 @@ class AdminUserIT extends AbstractIntegrationTest {
                         new CreateUserRequest("c@oms.test", "Cust1234", "C", Role.CUSTOMER, null), admin))
                 .andExpect(status().isUnprocessableEntity())
                 .andExpect(jsonPath("$.code").value("USER_ROLE_INVALID"));
+
+        // unknown or inactive warehouse -> 404 (phase 3)
+        mvc.perform(postJson("/api/v1/admin/users",
+                        new CreateUserRequest("s2@oms.test", "Staff123", "S", Role.WAREHOUSE_STAFF, 999L), admin))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("NOT_FOUND"));
+        Warehouse closed = data.deactivate(data.warehouse("OLD-1", 9));
+        mvc.perform(postJson("/api/v1/admin/users",
+                        new CreateUserRequest("s3@oms.test", "Staff123", "S", Role.WAREHOUSE_STAFF, closed.getId()), admin))
+                .andExpect(status().isNotFound());
 
         assertThat(userRepository.count()).isEqualTo(1);
     }
@@ -101,7 +114,7 @@ class AdminUserIT extends AbstractIntegrationTest {
         User admin = data.admin();
         data.customer(1);
         data.customer(2);
-        data.staff(1L);
+        data.staff(data.warehouse("BLR-1", 1));
 
         mvc.perform(getJson("/api/v1/admin/users", admin))
                 .andExpect(status().isOk())
@@ -126,12 +139,14 @@ class AdminUserIT extends AbstractIntegrationTest {
     @Test
     void patch_deactivateAndReassign() throws Exception {
         User admin = data.admin();
-        User staff = data.staff(1L);
+        Warehouse blr = data.warehouse("BLR-1", 1);
+        Warehouse mum = data.warehouse("MUM-1", 2);
+        User staff = data.staff(blr);
         User customer = data.customer(1);
 
-        mvc.perform(patchJson("/api/v1/admin/users/" + staff.getId(), new UpdateUserRequest(null, 2L), admin))
+        mvc.perform(patchJson("/api/v1/admin/users/" + staff.getId(), new UpdateUserRequest(null, mum.getId()), admin))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.warehouseId").value(2))
+                .andExpect(jsonPath("$.warehouseId").value(mum.getId()))
                 .andExpect(jsonPath("$.active").value(true));
 
         mvc.perform(patchJson("/api/v1/admin/users/" + customer.getId(), new UpdateUserRequest(false, null), admin))
@@ -144,7 +159,7 @@ class AdminUserIT extends AbstractIntegrationTest {
                 .andExpect(status().isForbidden());
 
         // a warehouse cannot be assigned to a non-staff user
-        mvc.perform(patchJson("/api/v1/admin/users/" + customer.getId(), new UpdateUserRequest(null, 1L), admin))
+        mvc.perform(patchJson("/api/v1/admin/users/" + customer.getId(), new UpdateUserRequest(null, blr.getId()), admin))
                 .andExpect(status().isUnprocessableEntity())
                 .andExpect(jsonPath("$.code").value("USER_ROLE_INVALID"));
 
@@ -156,7 +171,7 @@ class AdminUserIT extends AbstractIntegrationTest {
     @Test
     void adminEndpoints_403_forCustomerAndStaff() throws Exception {
         User customer = data.customer(1);
-        User staff = data.staff(1L);
+        User staff = data.staff(data.warehouse("BLR-1", 1));
 
         mvc.perform(getJson("/api/v1/admin/users", customer))
                 .andExpect(status().isForbidden())

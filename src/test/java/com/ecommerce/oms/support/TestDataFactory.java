@@ -4,9 +4,13 @@ import com.ecommerce.oms.catalog.CategoryRepository;
 import com.ecommerce.oms.catalog.ProductRepository;
 import com.ecommerce.oms.catalog.entity.Category;
 import com.ecommerce.oms.catalog.entity.Product;
+import com.ecommerce.oms.inventory.InventoryRepository;
+import com.ecommerce.oms.inventory.entity.Inventory;
 import com.ecommerce.oms.user.Role;
 import com.ecommerce.oms.user.UserRepository;
 import com.ecommerce.oms.user.entity.User;
+import com.ecommerce.oms.warehouse.WarehouseRepository;
+import com.ecommerce.oms.warehouse.entity.Warehouse;
 import java.math.BigDecimal;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -27,6 +31,8 @@ public class TestDataFactory {
     private final PasswordEncoder passwordEncoder;
     private final CategoryRepository categoryRepository;
     private final ProductRepository productRepository;
+    private final WarehouseRepository warehouseRepository;
+    private final InventoryRepository inventoryRepository;
 
     private String hash;
 
@@ -38,8 +44,9 @@ public class TestDataFactory {
         return user("customer" + n + "@oms.test", "Customer " + n, Role.CUSTOMER, null);
     }
 
-    public User staff(Long warehouseId) {
-        return user("staff" + warehouseId + "@oms.test", "Staff " + warehouseId, Role.WAREHOUSE_STAFF, warehouseId);
+    public User staff(Warehouse warehouse) {
+        return user("staff." + warehouse.getCode().toLowerCase() + "@oms.test", "Staff " + warehouse.getCode(),
+                Role.WAREHOUSE_STAFF, warehouse.getId());
     }
 
     public User user(String email, String fullName, Role role, Long warehouseId) {
@@ -92,6 +99,37 @@ public class TestDataFactory {
     public Product deactivate(Product product) {
         product.setActive(false);
         return productRepository.save(product);
+    }
+
+    // ---- warehouses and stock ------------------------------------------------------------------
+
+    public Warehouse warehouse(String code, int priority) {
+        Warehouse w = new Warehouse();
+        w.setCode(code);
+        w.setName("Warehouse " + code);
+        w.setCity(code.substring(0, Math.min(3, code.length())));
+        w.setPriority(priority);
+        w.setActive(true);
+        return warehouseRepository.save(w);
+    }
+
+    public Warehouse deactivate(Warehouse warehouse) {
+        warehouse.setActive(false);
+        return warehouseRepository.save(warehouse);
+    }
+
+    /** on_hand = qty, reserved = 0. */
+    public Inventory stock(Product product, Warehouse warehouse, int qty) {
+        return stock(product, warehouse, qty, 0);
+    }
+
+    public Inventory stock(Product product, Warehouse warehouse, int onHand, int reserved) {
+        Inventory i = new Inventory();
+        i.setProduct(product);
+        i.setWarehouse(warehouse);
+        i.setOnHand(onHand);
+        i.setReserved(reserved);
+        return inventoryRepository.save(i);
     }
 
     /** BCrypt is slow by design; hash the shared password once per JVM. */

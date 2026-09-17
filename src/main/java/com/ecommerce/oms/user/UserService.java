@@ -14,6 +14,7 @@ import com.ecommerce.oms.user.dto.RegisterRequest;
 import com.ecommerce.oms.user.dto.UpdateUserRequest;
 import com.ecommerce.oms.user.dto.UserResponse;
 import com.ecommerce.oms.user.entity.User;
+import com.ecommerce.oms.warehouse.WarehouseService;
 import java.util.Locale;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -33,6 +34,7 @@ public class UserService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
+    private final WarehouseService warehouseService;
 
     // ---- public auth --------------------------------------------------------------------------
 
@@ -66,6 +68,9 @@ public class UserService {
     @Transactional
     public UserResponse createByAdmin(CreateUserRequest request) {
         validateRoleAndWarehouse(request.role(), request.warehouseId());
+        if (request.warehouseId() != null) {
+            warehouseService.requireActive(request.warehouseId());
+        }
         User user = newUser(request.email(), request.password(), request.fullName(), request.role(),
                 request.warehouseId());
         log.info("Admin created {} user {}", user.getRole(), user.getId());
@@ -86,7 +91,7 @@ public class UserService {
                 throw new BusinessRuleException(ErrorCode.USER_ROLE_INVALID,
                         "warehouseId can only be set for WAREHOUSE_STAFF users");
             }
-            // Warehouse existence/active validation is added in phase 3, once the warehouses table exists.
+            warehouseService.requireActive(request.warehouseId());
             user.setWarehouseId(request.warehouseId());
         }
         if (request.active() != null) {
