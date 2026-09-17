@@ -4,11 +4,16 @@ import com.ecommerce.oms.catalog.CategoryRepository;
 import com.ecommerce.oms.catalog.ProductRepository;
 import com.ecommerce.oms.catalog.entity.Category;
 import com.ecommerce.oms.catalog.entity.Product;
+import com.ecommerce.oms.cart.CartRepository;
+import com.ecommerce.oms.cart.entity.Cart;
+import com.ecommerce.oms.cart.entity.CartItem;
 import com.ecommerce.oms.inventory.InventoryRepository;
 import com.ecommerce.oms.inventory.entity.Inventory;
 import com.ecommerce.oms.pricing.CouponRepository;
 import com.ecommerce.oms.pricing.DiscountType;
 import com.ecommerce.oms.pricing.entity.Coupon;
+import com.ecommerce.oms.order.dto.CheckoutRequest;
+import com.ecommerce.oms.order.dto.ShippingAddressRequest;
 import com.ecommerce.oms.user.Role;
 import com.ecommerce.oms.user.UserRepository;
 import com.ecommerce.oms.user.entity.User;
@@ -20,6 +25,7 @@ import java.time.Duration;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Builds test data straight through the repositories (no HTTP), so tests can focus on the behaviour
@@ -39,6 +45,7 @@ public class TestDataFactory {
     private final WarehouseRepository warehouseRepository;
     private final InventoryRepository inventoryRepository;
     private final CouponRepository couponRepository;
+    private final CartRepository cartRepository;
     private final Clock clock;
 
     private String hash;
@@ -155,6 +162,31 @@ public class TestDataFactory {
         c.setPerCustomerLimit(1);
         c.setActive(true);
         return couponRepository.save(c);
+    }
+
+    // ---- carts and checkout ------------------------------------------------------------------
+
+    /** Puts qty of the product in the customer cart (creating the cart if needed), bypassing the soft checks. */
+    @Transactional
+    public Cart cartWith(User customer, Product product, int qty) {
+        Cart cart = cartRepository.findByCustomerId(customer.getId()).orElseGet(() -> {
+            Cart c = new Cart();
+            c.setCustomerId(customer.getId());
+            return c;
+        });
+        CartItem item = new CartItem();
+        item.setProduct(product);
+        item.setQuantity(qty);
+        cart.addItem(item);
+        return cartRepository.save(cart);
+    }
+
+    public static ShippingAddressRequest address() {
+        return new ShippingAddressRequest("Alice Test", "1 Test Street", null, "Bengaluru", "KA", "560001", "9876543210");
+    }
+
+    public static CheckoutRequest checkoutRequest(String couponCode) {
+        return new CheckoutRequest(couponCode, address());
     }
 
     /** BCrypt is slow by design; hash the shared password once per JVM. */

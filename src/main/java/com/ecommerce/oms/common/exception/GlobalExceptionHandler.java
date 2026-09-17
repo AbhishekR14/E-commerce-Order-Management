@@ -15,6 +15,7 @@ import org.springframework.http.ProblemDetail;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.validation.FieldError;
+import org.springframework.validation.method.ParameterErrors;
 import org.springframework.validation.method.ParameterValidationResult;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -85,8 +86,11 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(HandlerMethodValidationException.class)
     public ProblemDetail handleMethodValidation(HandlerMethodValidationException ex, HttpServletRequest request) {
         List<FieldViolation> errors = ex.getParameterValidationResults().stream()
-                .flatMap(result -> result.getResolvableErrors().stream()
-                        .map(error -> new FieldViolation(parameterName(result), error.getDefaultMessage())))
+                .flatMap(result -> result instanceof ParameterErrors body
+                        // a @Valid object parameter: report its field paths (e.g. shippingAddress.pincode)
+                        ? body.getFieldErrors().stream().map(GlobalExceptionHandler::toViolation)
+                        : result.getResolvableErrors().stream()
+                                .map(error -> new FieldViolation(parameterName(result), error.getDefaultMessage())))
                 .sorted(BY_FIELD)
                 .toList();
         return validationProblem(errors, request);

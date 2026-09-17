@@ -114,8 +114,9 @@ public class CheckoutService {
         payment.setTransactionRef(result.transactionRef());
         paymentRepository.save(payment);
 
-        // 10. the cart is consumed
-        cart.getItems().clear();
+        // 10. the cart is consumed. Re-read through the service: the guarded inventory updates run with
+        //     clearAutomatically, which detached the Cart loaded in step 1 (a clear() on it would be lost).
+        cartService.clear(customerId);
 
         // 11. after-commit listeners (routing, notification, audit) from phase 7
         events.publishEvent(new OrderPlacedEvent(order.getId(), customerId));
