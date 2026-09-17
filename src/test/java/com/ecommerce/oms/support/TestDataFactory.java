@@ -6,12 +6,17 @@ import com.ecommerce.oms.catalog.entity.Category;
 import com.ecommerce.oms.catalog.entity.Product;
 import com.ecommerce.oms.inventory.InventoryRepository;
 import com.ecommerce.oms.inventory.entity.Inventory;
+import com.ecommerce.oms.pricing.CouponRepository;
+import com.ecommerce.oms.pricing.DiscountType;
+import com.ecommerce.oms.pricing.entity.Coupon;
 import com.ecommerce.oms.user.Role;
 import com.ecommerce.oms.user.UserRepository;
 import com.ecommerce.oms.user.entity.User;
 import com.ecommerce.oms.warehouse.WarehouseRepository;
 import com.ecommerce.oms.warehouse.entity.Warehouse;
 import java.math.BigDecimal;
+import java.time.Clock;
+import java.time.Duration;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
@@ -33,6 +38,8 @@ public class TestDataFactory {
     private final ProductRepository productRepository;
     private final WarehouseRepository warehouseRepository;
     private final InventoryRepository inventoryRepository;
+    private final CouponRepository couponRepository;
+    private final Clock clock;
 
     private String hash;
 
@@ -130,6 +137,24 @@ public class TestDataFactory {
         i.setOnHand(onHand);
         i.setReserved(reserved);
         return inventoryRepository.save(i);
+    }
+
+    // ---- coupons -------------------------------------------------------------------------------
+
+    /** Active for +/- 1 day around now, unlimited global use, once per customer, no category scope. */
+    public Coupon coupon(String code, DiscountType type, String value, String maxDiscount, String minOrder) {
+        Coupon c = new Coupon();
+        c.setCode(code);
+        c.setDescription(code);
+        c.setDiscountType(type);
+        c.setDiscountValue(new BigDecimal(value));
+        c.setMaxDiscount(maxDiscount == null ? null : new BigDecimal(maxDiscount));
+        c.setMinOrderAmount(new BigDecimal(minOrder));
+        c.setValidFrom(clock.instant().minus(Duration.ofDays(1)));
+        c.setValidTo(clock.instant().plus(Duration.ofDays(1)));
+        c.setPerCustomerLimit(1);
+        c.setActive(true);
+        return couponRepository.save(c);
     }
 
     /** BCrypt is slow by design; hash the shared password once per JVM. */
