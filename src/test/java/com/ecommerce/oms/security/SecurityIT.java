@@ -125,11 +125,10 @@ class SecurityIT extends AbstractIntegrationTest {
         mvc.perform(post("/api/v1/auth/login").contentType(MediaType.APPLICATION_JSON).content("{}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"));
-        // no controller yet, but the URL rule lets the request through to MVC
         mvc.perform(get("/api/v1/products"))
-                .andExpect(status().isNotFound());
+                .andExpect(status().isOk());
         mvc.perform(get("/api/v1/categories"))
-                .andExpect(status().isNotFound());
+                .andExpect(status().isOk());
         mvc.perform(get("/v3/api-docs"))
                 .andExpect(status().isOk());
         mvc.perform(get("/swagger-ui.html"))
